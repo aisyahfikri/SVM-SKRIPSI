@@ -163,28 +163,48 @@
                     <!-- Page Heading -->
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h1 class="h3 text-gray-800">Data Ulasan</h1>
-                        <button id="refresh-button" class="btn btn-primary">Refresh</button>
+                        <button id="refresh-button" class="btn btn-primary">
+                            <span id="button-text">Refresh</span>
+                            <span id="loading-spinner" class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                        </button>
+                        
                         <script>
                             document.getElementById("refresh-button").addEventListener("click", async function() {
                                 if (confirm("Apakah Anda yakin ingin menghapus semua data?")) {
                                     let button = document.getElementById("refresh-button");
+                                    let buttonText = document.getElementById("button-text");
+                                    let spinner = document.getElementById("loading-spinner");
+                        
                                     button.disabled = true; // Nonaktifkan tombol sementara
-                                    
+                                    buttonText.style.display = "none"; // Sembunyikan teks tombol
+                                    spinner.style.display = "inline-block"; // Tampilkan spinner loading
+                        
                                     try {
-                                        let response = await fetch("/refresh_all_data", { method: "POST" });
+                                        let response = await fetch("/refresh_all_data", { 
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" }
+                                        });
+                        
                                         let data = await response.json();
-
-                                        alert(data.message); // Tampilkan pesan sukses atau error
-                                        location.reload(); // Reload halaman setelah refresh data
+                        
+                                        if (response.ok) {
+                                            alert(data.message); // Tampilkan pesan sukses
+                                            location.reload(); // Reload halaman setelah refresh data
+                                        } else {
+                                            alert("Gagal menghapus data: " + data.error); // Tampilkan pesan error dari server
+                                        }
                                     } catch (error) {
                                         console.error("Error:", error);
                                         alert("Terjadi kesalahan saat menghapus data.");
                                     } finally {
                                         button.disabled = false; // Aktifkan kembali tombol jika ada error
+                                        buttonText.style.display = "inline"; // Tampilkan kembali teks tombol
+                                        spinner.style.display = "none"; // Sembunyikan spinner loading
                                     }
                                 }
                             });
                         </script>
+                        
 
                     </div>
                 
@@ -231,12 +251,14 @@
                                     <tbody>
                                         {% for item in data %}
                                         <tr>
-                                            <td>{{ loop.index }}</td>
-                                            <td>{{ item[1] }}</td>
-                                            <td>{{ item[2] }}</td>
+                                            <td>{{ loop.index }}</td> <!-- Menggunakan loop.index untuk nomor urut -->
+                                            <td>{{ item[1] }}</td> <!-- Data ulasan -->
+                                            <td>{{ item[2] }}</td> <!-- Label ulasan -->
                                             <td>
                                                 <form action="{{ url_for('delete_ulasan', id=item[0]) }}" method="POST" class="d-inline">
-                                                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Yakin ingin menghapus?');">Hapus</button>
+                                                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Yakin ingin menghapus?');">
+                                                        Hapus
+                                                    </button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -246,8 +268,32 @@
                             </div>
                         </div>
                     </div>
+                    
                 </div>
-                
+                <!-- JavaScript untuk menangani refresh data -->
+<script>
+    document.getElementById("refresh-button").addEventListener("click", async function() {
+        try {
+            let response = await fetch("/data-ulasan", { cache: "no-store" });
+            let html = await response.text();
+            
+            // Buat elemen dummy untuk parsing HTML
+            let parser = new DOMParser();
+            let doc = parser.parseFromString(html, "text/html");
+
+            // Ambil bagian tbody dari data terbaru
+            let newTableBody = doc.getElementById("ulasan-table-body");
+
+            // Ganti isi tabel dengan data terbaru
+            document.getElementById("ulasan-table-body").innerHTML = newTableBody.innerHTML;
+
+            alert("Data berhasil diperbarui!");
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Terjadi kesalahan saat memperbarui data.");
+        }
+    });
+</script>
                 <!-- Script diletakkan sebelum </body> -->
                 <!-- <script>
                     document.getElementById("refresh-button").addEventListener("click", function() {
@@ -321,6 +367,7 @@
     <script src="js/demo/chart-area-demo.js"></script>
     <script src="js/demo/chart-pie-demo.js"></script>
     <script src="js/demo/chart-bar-demo.js"></script>
+    
 
 </body>
 

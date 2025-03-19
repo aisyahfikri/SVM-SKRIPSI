@@ -15,6 +15,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from flask import make_response
 
 
 
@@ -81,18 +82,11 @@ def refresh_all_data():
         # Nonaktifkan foreign key constraints sementara
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
 
-        # # Urutan tabel yang akan dihapus berdasarkan dependensi
-        # ordered_tables = ["klasifikasi", "ulasan_preprocessed", "tfidf_results", "ulasan"]
-
-        # # Hapus semua data dari setiap tabel dan reset AUTO_INCREMENT
-        # for table in ordered_tables:
-        #     cursor.execute(f"DELETE FROM `{table}`;")
-        #     cursor.execute(f"ALTER TABLE `{table}` AUTO_INCREMENT = 1;")
-
-        cursor.execute("TRUNCATE TABLE klasifikasi;")
-        cursor.execute("TRUNCATE TABLE tfidf_results;")
-        cursor.execute("TRUNCATE TABLE ulasan_preprocessed;")
-        cursor.execute("TRUNCATE TABLE ulasan;")
+        # Hapus semua data dari setiap tabel tanpa menghapus AUTO_INCREMENT
+        cursor.execute("DELETE FROM klasifikasi;")
+        cursor.execute("DELETE FROM tfidf_results;")
+        cursor.execute("DELETE FROM ulasan_preprocessed;")
+        cursor.execute("DELETE FROM ulasan;")
 
         # Aktifkan kembali foreign key constraints
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
@@ -100,7 +94,7 @@ def refresh_all_data():
         # Commit perubahan
         db.commit()
 
-        return jsonify({"message": "Semua data dalam database elsimil telah di-refresh"}), 200
+        return jsonify({"message": "Semua data dalam database elsimil telah dihapus tanpa menghapus Auto Increment"}), 200
 
     except Exception as e:
         # Rollback jika terjadi error
@@ -120,13 +114,24 @@ def refresh_all_data():
 @app.route('/data-ulasan')
 def dataulasan():
     try:
+        db = get_db_connection()  # Pastikan koneksi dibuat di setiap request
+        cursor = db.cursor()
+
+        # Ambil data terbaru dari database
         cursor.execute("SELECT id, data_ulasan, label FROM ulasan")
         data = cursor.fetchall()
-        print("Data dari database:", data)  # Debugging
+
+        print("Data dari database:", data)  # Debugging untuk memastikan data kosong jika terhapus
+
+        cursor.close()
+        db.close()  # Pastikan koneksi ditutup setelah digunakan
+
         return render_template('dataulasan.html', data=data)
+
     except mysql.connector.Error as err:
         print(f"Error: {err}")
         return "Terjadi kesalahan dalam mengambil data ulasan", 500
+
 
 @app.route('/import-data', methods=['POST'])
 def import_data():
@@ -234,7 +239,10 @@ def preprocess_text(text):
 # ✅ Route Halaman Preprocessing
 @app.route('/preprocessing')
 def preprocessing():
+    db = get_db_connection()
+    db.commit()  # Pastikan database diperbarui sebelum query baru
     cursor = db.cursor(dictionary=True)
+
     try:
         cursor.execute("""
             SELECT ulasan.id, ulasan.label, ulasan_preprocessed.cleaning, 
@@ -249,7 +257,15 @@ def preprocessing():
         data = []
     finally:
         cursor.close()
-    return render_template("preprocessing.html", data=data)
+        db.close()
+
+    # Gunakan no-cache agar browser selalu mengambil data terbaru
+    response = make_response(render_template("preprocessing.html", data=data))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    return response
 
 @app.route('/preprocess', methods=['POST'])
 def preprocess_data():
